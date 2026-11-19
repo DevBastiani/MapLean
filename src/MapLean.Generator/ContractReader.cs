@@ -238,11 +238,22 @@ internal static class ContractReader
     }
 
     private static IEnumerable<IPropertySymbol> PublicProperties(ITypeSymbol type)
-        => type.GetMembers().OfType<IPropertySymbol>().Where(static property =>
-            property.DeclaredAccessibility == Accessibility.Public &&
-            !property.IsStatic &&
-            property.Parameters.Length == 0 &&
-            property.GetMethod is { DeclaredAccessibility: Accessibility.Public });
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        for (var current = type; current is not null && current.SpecialType != SpecialType.System_Object; current = current.BaseType)
+        {
+            foreach (var property in current.GetMembers().OfType<IPropertySymbol>())
+            {
+                if (!seen.Add(property.Name))
+                    continue;
+                if (property.DeclaredAccessibility == Accessibility.Public &&
+                    !property.IsStatic &&
+                    property.Parameters.Length == 0 &&
+                    property.GetMethod is { DeclaredAccessibility: Accessibility.Public })
+                    yield return property;
+            }
+        }
+    }
 
     private static string HintName(INamedTypeSymbol type, IMethodSymbol method, IParameterSymbol parameter)
     {

@@ -85,4 +85,19 @@ public sealed class GapTests
             """);
         Assert.Equal("xy", Result(namespaces));
     }
+
+    [Fact]
+    public void Inherited_properties_are_mapped_and_the_most_derived_wins()
+    {
+        var run = Build("""
+            public class BaseP { public int Id { get; set; } public string Tag { get; set; } = "base"; }
+            public class P : BaseP { public string Name { get; set; } = ""; public new string Tag { get; set; } = "derived"; }
+            public class BaseD { public int Id { get; set; } public string Tag { get; set; } = ""; }
+            public class D : BaseD { public string Name { get; set; } = ""; public new string Tag { get; set; } = ""; }
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() { var d = M.Apply(new P { Id = 7, Name = "x" }); return d.Id + "|" + d.Name + "|" + d.Tag + "|" + ((BaseD)d).Tag; } }
+            """);
+        Assert.DoesNotContain("ML0006", run.Warnings);
+        Assert.Equal("7|x|derived|", Result(run));
+    }
 }
