@@ -10,7 +10,7 @@ dotnet add package MapLean
 
 ## Map a type
 
-Put `[To]` on a partial method. The method's class is partial. The method takes the source and returns the destination. MapLean writes the method body. Public members with the same name are copied. Nested values, nullable values, and `List<T>` are mapped.
+Put `[To]` on a partial method. The method's class is partial. The method takes the source and returns the destination. MapLean writes the method body. Public members with the same name are copied. Nested values, nullable values, and `List<T>` are mapped. A member of the same type is assigned, not cloned, so the source and the destination share that reference, arrays and nested objects of that type included.
 
 ```csharp
 using MapLean;
@@ -78,7 +78,7 @@ Give the method one source parameter, passed by value or with `in`, and a destin
 
 ### ML0004
 
-Change the member so MapLean can copy it. MapLean copies matching types, nested objects, nullable objects, and `List<T>`.
+Change the member so MapLean can copy it. MapLean copies matching types, nested objects, nullable objects, nullable structs, and `List<T>`. A nullable member does not map to a non-nullable one, and other collections are not mapped.
 
 ### ML0005
 

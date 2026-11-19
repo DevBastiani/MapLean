@@ -4,7 +4,7 @@ globs: "**/*.cs"
 alwaysApply: true
 ---
 
-Map with MapLean by putting `[To]` on a partial method. The method's class is partial. The method takes the source and returns the destination. MapLean writes the method body. Public members with the same name are copied. Nested values, nullable values, and `List<T>` are mapped. A destination member with no source keeps its value. MapLean reports ML0006 unless the member is marked `[Leave]`. A source member with no destination is left out.
+Map with MapLean by putting `[To]` on a partial method. The method's class is partial. The method takes the source and returns the destination. MapLean writes the method body. Public members with the same name are copied. Nested values, nullable values, and `List<T>` are mapped. A member of the same type is assigned, not cloned, so the source and the destination share that reference, arrays and nested objects of that type included. A destination member with no source keeps its value. MapLean reports ML0006 unless the member is marked `[Leave]`. A source member with no destination is left out.
 
 ```csharp
 using MapLean;

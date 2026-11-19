@@ -23,7 +23,7 @@ internal static class MapDiagnostics
         Describe(ToTarget, "To belongs on a method", "Move [To] onto a partial method. That method takes the source and returns the destination.", DiagnosticSeverity.Error),
         Describe(Partial, "Method must be partial", "Add partial to {0}.", DiagnosticSeverity.Error),
         Describe(Signature, "Method shape", "Give {0} one source parameter, passed by value or with in, and a destination return type.", DiagnosticSeverity.Error),
-        Describe(CannotMap, "Unsupported member types", "Change {2} so MapLean can copy {0} to {1}. MapLean copies matching types, nested objects, nullable objects, and List<T>.", DiagnosticSeverity.Error),
+        Describe(CannotMap, "Unsupported member types", "Change {2} so MapLean can copy {0} to {1}. MapLean copies matching types, nested objects, nullable objects, nullable structs, and List<T>. A nullable member does not map to a non-nullable one, and other collections are not mapped.", DiagnosticSeverity.Error),
         Describe(Required, "Required member missing", "Add a public {0} on the source, or remove required from {0}.", DiagnosticSeverity.Error),
         Describe(Left, "Destination member left", "{0} has no matching source member. Add a public member with that name on the source, or mark it with Leave to keep the destination value.", DiagnosticSeverity.Warning),
         Describe(TypeKind, "Declaring type must be a class", "Change {0} to a partial class. It is a {1}, and MapLean writes a partial class.", DiagnosticSeverity.Error),
