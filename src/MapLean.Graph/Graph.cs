@@ -1,3 +1,5 @@
+using MapLean;
+
 namespace MapLean.Graph;
 
 public sealed record Address(string City, string? Line2);
@@ -23,6 +25,7 @@ public sealed record OrderDto(
     List<LineItemDto> Lines,
     string? Note)
 {
+    [Leave]
     public string Channel { get; init; } = "unset";
 }
 

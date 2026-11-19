@@ -8,10 +8,9 @@ namespace MapLean.Tests;
 public sealed class CacheTests
 {
     [Fact]
-    public void Irrelevant_edit_keeps_a_cached_step()
+    public void Irrelevant_edit_keeps_the_contract_cached()
     {
-        var map = CSharpSyntaxTree.ParseText(
-            """
+        const string map = """
             using MapLean;
             namespace Demo;
             public sealed record Src(string Name);
@@ -21,11 +20,61 @@ public sealed class CacheTests
                 [To]
                 public static partial Dst Apply(Src source);
             }
-            """,
-            path: "map.cs");
-        var other = CSharpSyntaxTree.ParseText(
-            "namespace Demo; public sealed class Unrelated { public int N => 1; }",
-            path: "other.cs");
+            """;
+        var reasons = Rerun(map, map, "namespace Demo; public sealed class Unrelated { public int N => 1; }", "namespace Demo; public sealed class Unrelated { public int N => 1; } // note");
+        AssertContractKept(reasons);
+    }
+
+    [Fact]
+    public void Whitespace_edit_keeps_the_contract_unchanged()
+    {
+        const string before = """
+            using MapLean;
+            namespace Demo;
+            public sealed record Src(string Name);
+            public sealed record Dst(string Name);
+            public static partial class M
+            {
+                [To]
+                public static partial Dst Apply(Src source);
+            }
+            """;
+        const string after = """
+            using MapLean;
+            namespace Demo;
+            public sealed record Src(string Name);
+            public sealed record Dst(string Name);
+            public static partial class M
+            {
+                [To]
+                public static partial Dst Apply(Src  source);
+            }
+            """;
+        var reasons = Rerun(before, after, "namespace Demo; public sealed class Unrelated { public int N => 1; }", "namespace Demo; public sealed class Unrelated { public int N => 1; }");
+        AssertContract(reasons, IncrementalStepRunReason.Unchanged);
+    }
+
+    private static void AssertContract(string[] reasons, IncrementalStepRunReason expected)
+        => AssertContract(reasons, reason => Assert.Equal("Contracts " + expected, reason));
+
+    private static void AssertContractKept(string[] reasons)
+        => AssertContract(reasons, reason =>
+        {
+            var kind = reason["Contracts ".Length..];
+            Assert.True(kind is nameof(IncrementalStepRunReason.Cached) or nameof(IncrementalStepRunReason.Unchanged), reason);
+        });
+
+    private static void AssertContract(string[] reasons, Action<string> assert)
+    {
+        var contract = reasons.Where(reason => reason.StartsWith("Contracts ", StringComparison.Ordinal)).ToArray();
+        Assert.True(contract.Length > 0, string.Join("\n", reasons));
+        Assert.All(contract, assert);
+    }
+
+    private static string[] Rerun(string mapBefore, string mapAfter, string otherBefore, string otherAfter)
+    {
+        var map = CSharpSyntaxTree.ParseText(mapBefore, path: "map.cs");
+        var other = CSharpSyntaxTree.ParseText(otherBefore, path: "other.cs");
         var compilation = CSharpCompilation.Create(
             "cache",
             new[] { map, other },
@@ -35,15 +84,14 @@ public sealed class CacheTests
             new[] { new MapGenerator().AsSourceGenerator() },
             driverOptions: new GeneratorDriverOptions(IncrementalGeneratorOutputKind.None, trackIncrementalGeneratorSteps: true));
         driver = driver.RunGenerators(compilation);
-        var edited = CSharpSyntaxTree.ParseText(
-            "namespace Demo; public sealed class Unrelated { public int N => 1; } // note",
-            path: "other.cs");
-        driver = driver.RunGenerators(compilation.ReplaceSyntaxTree(other, edited));
+        var editedMap = CSharpSyntaxTree.ParseText(mapAfter, path: "map.cs");
+        var editedOther = CSharpSyntaxTree.ParseText(otherAfter, path: "other.cs");
+        compilation = compilation.ReplaceSyntaxTree(map, editedMap).ReplaceSyntaxTree(other, editedOther);
+        driver = driver.RunGenerators(compilation);
         var steps = driver.GetRunResult().Results.Single().TrackedSteps;
-        var reasons = steps
+        return steps
             .SelectMany(pair => pair.Value.SelectMany(step => step.Outputs.Select(output => pair.Key + " " + output.Reason)))
             .ToArray();
-        Assert.Contains(reasons, reason => reason.EndsWith(" " + IncrementalStepRunReason.Cached, StringComparison.Ordinal));
     }
 
     private static IEnumerable<MetadataReference> References()

@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <!-- Major 0 warns the surface may break (semver.org item 4): patch for a compatible fix, minor for the rest, and the versioned surface is the public name, the diagnostic id, and the observable map result. -->
-    <Version>0.0.1</Version>
+    <Version>0.1.0</Version>
     <PackageId>MapLean</PackageId>
-    <Description>Object mapping source generator.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <Description>Source generator that copies public members of the same name into a partial method.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeBuildOutput>true</IncludeBuildOutput>
   </PropertyGroup>
@@ -12,9 +14,12 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
   <Target Name="AddGeneratorToPackage" BeforeTargets="_GetPackageFiles">
-    <MSBuild Projects="..\MapLean.Generator\MapLean.Generator.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)" />
+    <PropertyGroup>
+      <_GeneratorTfm>netstandard2.0</_GeneratorTfm>
+    </PropertyGroup>
+    <MSBuild Projects="..\MapLean.Generator\MapLean.Generator.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=$(_GeneratorTfm)" />
     <ItemGroup>
-      <None Include="..\MapLean.Generator\bin\$(Configuration)\$(TargetFramework)\MapLean.Generator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+      <None Include="..\MapLean.Generator\bin\$(Configuration)\$(_GeneratorTfm)\MapLean.Generator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
     </ItemGroup>
   </Target>
 </Project>
