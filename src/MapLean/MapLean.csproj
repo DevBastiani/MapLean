@@ -8,6 +8,9 @@
     <Description>Source generator that copies public members of the same name into a partial method.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <IncludeBuildOutput>true</IncludeBuildOutput>
+    <!-- The dll ships in ref/ only: consumers compile against it and nothing is copied to their output. NU5131 only asks for a legacy nuspec references group, which ref/ already replaces. -->
+    <BuildOutputTargetFolder>ref</BuildOutputTargetFolder>
+    <NoWarn>$(NoWarn);NU5131</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\MapLean.Generator\MapLean.Generator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />

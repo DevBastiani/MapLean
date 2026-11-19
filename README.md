@@ -8,6 +8,8 @@ MapLean copies public members of the same name into a partial method.
 dotnet add package MapLean
 ```
 
+The package adds no runtime dependency: the generator runs at build time and `MapLean.dll` is a compile-time reference only.
+
 ## Map a type
 
 Put `[To]` on a partial method. The method's class is partial. The method takes the source and returns the destination. MapLean writes the method body. Public members with the same name are copied. Nested values, nullable values, and `List<T>` are mapped. A member of the same type is assigned, not cloned, so the source and the destination share that reference, arrays and nested objects of that type included.
