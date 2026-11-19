@@ -48,19 +48,19 @@ def cells(line):
     return [part.strip() for part in line.strip().strip("|").split("|")]
 
 
-def parse_table(text):
+def parse_table(text, columns):
     table = [line for line in text.splitlines() if line.startswith("|")]
     if len(table) < 3:
-        raise SystemExit("artifact table is missing")
+        raise SystemExit("table is missing")
     header = cells(table[0])
-    missing = [name for name in MEASURED if name not in header]
+    missing = [name for name in columns if name not in header]
     if missing:
-        raise SystemExit(f"artifact is missing {missing}")
+        raise SystemExit(f"table is missing {missing}")
     index = {name: header.index(name) for name in header}
     rows = []
     for line in table[2:]:
         row = cells(line)
-        rows.append({name: row[index[name]] for name in MEASURED})
+        rows.append({name: row[index[name]] for name in columns})
     return rows
 
 
@@ -79,14 +79,17 @@ def number(cell):
     return float(match.group(0))
 
 
+def separated(left, right):
+    gap = abs(number(left["Mean"]) - number(right["Mean"]))
+    return gap > number(left["Error"]) + number(right["Error"])
+
+
 def speed_sentence(rows):
     by = {row["Method"]: row for row in rows}
     manual = by["Manual"]
     lean = by["MapLean"]
     auto = by["AutoMapper"]
-    ratio = number(lean["Ratio"])
-    ratio_sd = number(lean["RatioSD"])
-    if abs(ratio - 1.0) <= ratio_sd:
+    if not separated(manual, lean):
         against_manual = "the same speed as the hand-written map"
     elif number(lean["Mean"]) < number(manual["Mean"]):
         against_manual = "faster than the hand-written map"
@@ -145,20 +148,19 @@ def parse_benchmark(text):
     version = re.search(r"^Version (\S+)\. Commit (\S+)\.$", text, re.M)
     if version is None:
         raise SystemExit("readme has no version line")
-    sentence = re.search(r"^Version \S+\. Commit \S+\.\n\n(.+)\n\n```", text)
+    sentence = re.search(r"^Version \S+\. Commit \S+\.\n\n(.+)\n\n```", text, re.M)
     if sentence is None:
         raise SystemExit("readme has no speed sentence")
     host = host_fence(text)
-    rows = parse_table(text)
-    visible = [tuple(row[name] for name in COLUMNS) for row in rows]
-    return version.group(1), version.group(2), sentence.group(1), host, visible, rows
+    visible = [tuple(row[name] for name in COLUMNS) for row in parse_table(text, COLUMNS)]
+    return version.group(1), version.group(2), sentence.group(1), host, visible
 
 
 def differences(readme_text, artifact_text, version):
     block = benchmark_slice(readme_text)
-    got_version, got_sha, got_sentence, got_host, got_rows, _ = parse_benchmark(block)
+    got_version, got_sha, got_sentence, got_host, got_rows = parse_benchmark(block)
     host = host_fence(artifact_text)
-    rows = parse_table(artifact_text)
+    rows = parse_table(artifact_text, MEASURED)
     visible = [tuple(row[name] for name in COLUMNS) for row in rows]
     problems = []
     if got_version != version:
@@ -187,7 +189,7 @@ def main():
     artifact_text = args.artifact.read_text()
     if args.write:
         host = host_fence(artifact_text)
-        rows = parse_table(artifact_text)
+        rows = parse_table(artifact_text, MEASURED)
         block = benchmark_block(host, rows, version, commit())
         readme = args.readme.read_text()
         start, end = slice_bounds(readme)

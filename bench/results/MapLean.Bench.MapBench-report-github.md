@@ -8,8 +8,8 @@ Intel Xeon Processor, 1 CPU, 4 logical and 4 physical cores
 
 
 ```
-| Method     | Mean     | Error   | StdDev  | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
-|----------- |---------:|--------:|--------:|------:|--------:|-------:|----------:|------------:|
-| Manual     | 141.4 ns | 2.73 ns | 2.68 ns |  1.00 |    0.03 | 0.0029 |     504 B |        1.00 |
-| MapLean    | 135.0 ns | 2.72 ns | 5.05 ns |  0.96 |    0.04 | 0.0029 |     504 B |        1.00 |
-| AutoMapper | 274.6 ns | 3.92 ns | 4.02 ns |  1.94 |    0.05 | 0.0033 |     560 B |        1.11 |
+| Method     | Mean     | Error   | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|----------- |---------:|--------:|---------:|------:|--------:|-------:|----------:|------------:|
+| Manual     | 127.3 ns | 2.51 ns |  3.26 ns |  1.00 |    0.04 | 0.0029 |     504 B |        1.00 |
+| MapLean    | 121.1 ns | 1.59 ns |  1.41 ns |  0.95 |    0.03 | 0.0029 |     504 B |        1.00 |
+| AutoMapper | 250.4 ns | 5.06 ns | 11.32 ns |  1.97 |    0.10 | 0.0033 |     560 B |        1.11 |
