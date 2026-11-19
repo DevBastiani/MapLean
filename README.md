@@ -41,26 +41,26 @@ The method's type is a top-level partial class, and that class and method are pu
 
 ## Benchmark
 
-Version 0.1.0. Commit e753cf697f908adf591ac599d2d495aa35366135.
+Version 0.0.1. Commit 145b806f28512884d0bbf2affc20f4ed2df36417.
 
-MapLean is faster than the hand-written map and about 2x faster than AutoMapper.
+MapLean is the same speed as the hand-written map and about 2x faster than AutoMapper.
 
 ```
 
-BenchmarkDotNet v0.14.0, Ubuntu 24.04.5 LTS (Noble Numbat)
-Intel Xeon Processor, 1 CPU, 4 logical and 4 physical cores
-.NET SDK 8.0.428
-  [Host]     : .NET 8.0.34 (8.0.3426.52217), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
-  DefaultJob : .NET 8.0.34 (8.0.3426.52217), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
+BenchmarkDotNet v0.14.0, Windows 11 (10.0.26300.9974)
+Unknown processor
+.NET SDK 11.0.100
+  [Host]     : .NET 10.0.15 (10.0.1526.53008), X64 RyuJIT AVX2
+  DefaultJob : .NET 10.0.15 (10.0.1526.53008), X64 RyuJIT AVX2
 
 
 ```
 
 | Method | Mean | Error | Ratio | Allocated |
 | --- | ---: | ---: | ---: | ---: |
-| Manual | 127.3 ns | 2.51 ns | 1.00 | 504 B |
-| MapLean | 121.1 ns | 1.59 ns | 0.95 | 504 B |
-| AutoMapper | 250.4 ns | 5.06 ns | 1.97 | 560 B |
+| Manual | 57.59 ns | 0.578 ns | 1.00 | 504 B |
+| MapLean | 58.08 ns | 0.517 ns | 1.01 | 504 B |
+| AutoMapper | 121.86 ns | 0.479 ns | 2.12 | 560 B |
 
 ## Diagnostics
 

@@ -1,15 +1,15 @@
 ```
 
-BenchmarkDotNet v0.14.0, Ubuntu 24.04.5 LTS (Noble Numbat)
-Intel Xeon Processor, 1 CPU, 4 logical and 4 physical cores
-.NET SDK 8.0.428
-  [Host]     : .NET 8.0.34 (8.0.3426.52217), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
-  DefaultJob : .NET 8.0.34 (8.0.3426.52217), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
+BenchmarkDotNet v0.14.0, Windows 11 (10.0.26300.9974)
+Unknown processor
+.NET SDK 11.0.100
+  [Host]     : .NET 10.0.15 (10.0.1526.53008), X64 RyuJIT AVX2
+  DefaultJob : .NET 10.0.15 (10.0.1526.53008), X64 RyuJIT AVX2
 
 
 ```
-| Method     | Mean     | Error   | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
-|----------- |---------:|--------:|---------:|------:|--------:|-------:|----------:|------------:|
-| Manual     | 127.3 ns | 2.51 ns |  3.26 ns |  1.00 |    0.04 | 0.0029 |     504 B |        1.00 |
-| MapLean    | 121.1 ns | 1.59 ns |  1.41 ns |  0.95 |    0.03 | 0.0029 |     504 B |        1.00 |
-| AutoMapper | 250.4 ns | 5.06 ns | 11.32 ns |  1.97 |    0.10 | 0.0033 |     560 B |        1.11 |
+| Method     | Mean      | Error    | StdDev   | Ratio | RatioSD | Gen0   | Allocated | Alloc Ratio |
+|----------- |----------:|---------:|---------:|------:|--------:|-------:|----------:|------------:|
+| Manual     |  57.59 ns | 0.578 ns | 0.512 ns |  1.00 |    0.01 | 0.0482 |     504 B |        1.00 |
+| MapLean    |  58.08 ns | 0.517 ns | 0.458 ns |  1.01 |    0.01 | 0.0482 |     504 B |        1.00 |
+| AutoMapper | 121.86 ns | 0.479 ns | 0.425 ns |  2.12 |    0.02 | 0.0534 |     560 B |        1.11 |
