@@ -17,7 +17,7 @@ public sealed class VersionRuleTests
         Assert.True(match.Success);
         var rule = match.Groups["rule"].Value.Trim();
         var version = match.Groups["version"].Value.Trim();
-        Assert.Equal("0.0.1", version);
+        Assert.Equal("0.1.0", version);
         Assert.Contains("semver.org item 4", rule, StringComparison.Ordinal);
         Assert.Contains("patch", rule, StringComparison.Ordinal);
         Assert.Contains("minor", rule, StringComparison.Ordinal);

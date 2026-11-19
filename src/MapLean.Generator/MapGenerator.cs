@@ -21,7 +21,8 @@ public sealed class MapGenerator : IIncrementalGenerator
         var contracts = context.SyntaxProvider.ForAttributeWithMetadataName(
             "MapLean.ToAttribute",
             static (node, _) => node is MethodDeclarationSyntax or TypeDeclarationSyntax,
-            static (ctx, _) => ContractReader.Read(ctx));
+            static (ctx, _) => ContractReader.Read(ctx))
+            .WithTrackingName("Contracts");
 
         context.RegisterSourceOutput(contracts, static (source, result) =>
         {
