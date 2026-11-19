@@ -84,12 +84,18 @@ def separated(left, right):
     return gap > number(left["Error"]) + number(right["Error"])
 
 
+def clearly_different(manual, lean):
+    if not separated(manual, lean):
+        return False
+    return abs(number(lean["Ratio"]) - 1) > 2 * number(lean["RatioSD"])
+
+
 def speed_sentence(rows):
     by = {row["Method"]: row for row in rows}
     manual = by["Manual"]
     lean = by["MapLean"]
     auto = by["AutoMapper"]
-    if not separated(manual, lean):
+    if not clearly_different(manual, lean):
         against_manual = "the same speed as the hand-written map"
     elif number(lean["Mean"]) < number(manual["Mean"]):
         against_manual = "faster than the hand-written map"

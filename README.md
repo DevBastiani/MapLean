@@ -39,8 +39,6 @@ public sealed record PersonDto(string Name)
 
 The method's type is a top-level partial class, and that class and method are public or internal. MapLean reports [ML0007](#ml0007), [ML0008](#ml0008), or [ML0009](#ml0009) for the other shapes.
 
-The table below is one Release run. The host could not raise the benchmark process priority.
-
 ## Benchmark
 
 Version 0.1.0. Commit e753cf697f908adf591ac599d2d495aa35366135.
