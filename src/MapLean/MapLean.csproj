@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Version>0.0.1</Version>
+    <PackageId>MapLean</PackageId>
+    <Description>Object mapping source generator.</Description>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MapLean.Generator\MapLean.Generator.csproj" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+  <Target Name="AddGeneratorToPackage" BeforeTargets="_GetPackageFiles">
+    <MSBuild Projects="..\MapLean.Generator\MapLean.Generator.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=$(TargetFramework)" />
+    <ItemGroup>
+      <None Include="..\MapLean.Generator\bin\$(Configuration)\$(TargetFramework)\MapLean.Generator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+    </ItemGroup>
+  </Target>
+</Project>
