@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -52,7 +53,7 @@ internal static class ContractReader
             Display(method.ReturnType),
             parameter.Name,
             plan);
-        var hint = type.Name + "." + method.Name + ".g.cs";
+        var hint = HintName(type, method, parameter);
         return new ContractResult.Ok(contract, hint, new EquatableArray<Diag>(warnings));
     }
 
@@ -242,6 +243,14 @@ internal static class ContractReader
             !property.IsStatic &&
             property.Parameters.Length == 0 &&
             property.GetMethod is { DeclaredAccessibility: Accessibility.Public });
+
+    private static string HintName(INamedTypeSymbol type, IMethodSymbol method, IParameterSymbol parameter)
+    {
+        var name = new StringBuilder();
+        foreach (var c in type.ToDisplayString() + "." + method.Name + "." + parameter.Type.ToDisplayString())
+            name.Append(char.IsLetterOrDigit(c) || c == '.' ? c : '_');
+        return name.Append(".g.cs").ToString();
+    }
 
     private static IPropertySymbol? PublicProperty(ITypeSymbol type, string name)
         => PublicProperties(type).FirstOrDefault(property => property.Name == name);

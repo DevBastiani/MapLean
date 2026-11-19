@@ -55,4 +55,34 @@ public sealed class GapTests
             """);
         Assert.Contains("ML0010", mutual.Errors);
     }
+
+    [Fact]
+    public void Overloads_and_same_named_classes_each_get_their_own_file()
+    {
+        var overloads = Build("""
+            public record P(string Name); public record D(string Name);
+            public record Q(int V); public record QD(int V);
+            public static partial class M
+            {
+                [To] public static partial D Apply(P source);
+                [To] public static partial QD Apply(Q source);
+            }
+            public static class Probe { public static string Run() => M.Apply(new P("x")).Name + M.Apply(new Q(2)).V; }
+            """);
+        Assert.Equal("x2", Result(overloads));
+
+        var namespaces = CorpusTests.Compile("""
+            namespace Demo
+            {
+                public record P(string Name); public record D(string Name);
+                public static partial class M { [MapLean.To] public static partial D Apply(P source); }
+                public static class Probe { public static string Run() => M.Apply(new P("x")).Name + Other.M.Apply(new P("y")).Name; }
+            }
+            namespace Demo.Other
+            {
+                public static partial class M { [MapLean.To] public static partial Demo.D Apply(Demo.P source); }
+            }
+            """);
+        Assert.Equal("xy", Result(namespaces));
+    }
 }
