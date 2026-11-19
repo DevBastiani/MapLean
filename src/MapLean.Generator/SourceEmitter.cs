@@ -72,15 +72,23 @@ internal static class SourceEmitter
                     return created;
                 return created + " { " + string.Join(", ", initArgs) + " }";
             }
-            case Plan.NullNested nullNested:
+            case Plan.Guard guard:
             {
-                preludes.Add($"var {nullNested.Local} = {nullNested.Path};");
                 var inner = new List<string>();
-                var args = new string[nullNested.Args.Length];
-                for (var i = 0; i < nullNested.Args.Length; i++)
-                    args[i] = EmitExpr(nullNested.Args[i].Value, inner);
-                preludes.AddRange(inner);
-                return $"{nullNested.Local} is null ? null : new {nullNested.Type}(" + string.Join(", ", args) + ")";
+                var expression = EmitExpr(guard.Inner, inner);
+                preludes.Add($"var {guard.Local} = {guard.Path};");
+                var none = guard.IsValue ? $"default({guard.ResultType})" : "null";
+                if (inner.Count == 0)
+                    return $"{guard.Local} is null ? {none} : {expression}";
+                var result = guard.Local + "Res";
+                preludes.Add($"{guard.ResultType} {result} = {none};");
+                preludes.Add($"if ({guard.Local} is not null)");
+                preludes.Add("{");
+                foreach (var line in inner)
+                    preludes.Add("    " + line);
+                preludes.Add($"    {result} = {expression};");
+                preludes.Add("}");
+                return result;
             }
             case Plan.List list:
             {

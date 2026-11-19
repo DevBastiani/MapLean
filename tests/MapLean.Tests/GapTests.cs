@@ -100,4 +100,138 @@ public sealed class GapTests
         Assert.DoesNotContain("ML0006", run.Warnings);
         Assert.Equal("7|x|derived|", Result(run));
     }
+
+    [Fact]
+    public void Nullable_nested_object_keeps_constructor_and_initializer_members()
+    {
+        var run = Build("""
+            public record A(string City) { public string Zip { get; init; } = ""; }
+            public record AD(string City) { public string Zip { get; init; } = ""; }
+            public record P(A? Addr); public record D(AD? Addr);
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() => M.Apply(new P(new A("c") { Zip = "z" })).Addr!.Zip + "|" + (M.Apply(new P(null)).Addr == null); }
+            """);
+        Assert.Equal("z|True", Result(run));
+    }
+
+    [Fact]
+    public void Null_source_is_guarded_at_every_depth()
+    {
+        var run = Build("""
+            public record I(int V); public record ID(int V);
+            public record A(List<I> Items); public record AD(List<ID> Items);
+            public record P(List<I>? Own, A? Addr, A? Deep); public record D(List<ID>? Own, AD? Addr, AD? Deep);
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe
+            {
+                public static string Run()
+                {
+                    var empty = M.Apply(new P(null, null, null));
+                    var full = M.Apply(new P(new() { new(1) }, new A(new() { new(2) }), null));
+                    return (empty.Own == null) + "|" + (empty.Addr == null) + "|" + full.Own![0].V + "|" + full.Addr!.Items[0].V + "|" + (full.Deep == null);
+                }
+            }
+            """);
+        Assert.Equal("True|True|1|2|True", Result(run));
+    }
+
+    [Fact]
+    public void Nullable_to_non_nullable_is_a_diagnostic_unless_the_destination_is_oblivious()
+    {
+        var list = Build("""
+            public record I(int V); public record ID(int V);
+            public record P(List<I>? Items); public record D(List<ID> Items);
+            public static partial class M { [To] public static partial D Apply(P source); }
+            """);
+        Assert.Contains("ML0004", list.Errors);
+
+        var text = Build("""
+            public record P(string? Name); public record D(string Name);
+            public static partial class M { [To] public static partial D Apply(P source); }
+            """);
+        Assert.Contains("ML0004", text.Errors);
+
+        var oblivious = Build("""
+            public record I(int V); public record ID(int V);
+            public record P(List<I>? Items, string? Name);
+            #nullable disable
+            public class D { public List<ID> Items { get; set; } public string Name { get; set; } }
+            #nullable enable
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() { var d = M.Apply(new P(null, null)); return (d.Items == null) + "|" + (d.Name == null); } }
+            """);
+        Assert.Equal("True|True", Result(oblivious));
+    }
+
+    [Fact]
+    public void Generated_code_keeps_reference_nullability_without_compiler_warnings()
+    {
+        var run = Build("""
+            public record I(int V); public record ID(int V);
+            public record P(List<I?> V); public record D(List<ID?> V);
+            public static partial class M
+            {
+                [To] public static partial D? Apply(P? source);
+                [To] public static partial ID? Item(I? source);
+            }
+            public static class Probe
+            {
+                public static string Run()
+                {
+                    var d = M.Apply(new P(new() { null, new(2) }))!;
+                    return (M.Apply(null) == null) + "|" + (d.V[0] == null) + "|" + d.V[1]!.V + "|" + (M.Item(null) == null);
+                }
+            }
+            """);
+        Assert.Equal("True|True|2|True", Result(run));
+        Assert.Equal("", run.Build);
+    }
+
+    [Fact]
+    public void Nullable_struct_is_mapped_when_present_and_rejected_for_a_non_nullable_destination()
+    {
+        var run = Build("""
+            public record struct Pt(int X); public record struct PtD(int X);
+            public record P(Pt? At, int? N); public record D(PtD? At, int? N);
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe
+            {
+                public static string Run()
+                {
+                    var some = M.Apply(new P(new Pt(3), 4));
+                    var none = M.Apply(new P(null, null));
+                    return some.At!.Value.X + "|" + some.N + "|" + (none.At == null) + "|" + (none.N == null);
+                }
+            }
+            """);
+        Assert.Equal("3|4|True|True", Result(run));
+
+        var bad = Build("""
+            public record struct Pt(int X); public record struct PtD(int X);
+            public record P(Pt? At); public record D(PtD At);
+            public static partial class M { [To] public static partial D Apply(P source); }
+            """);
+        Assert.Contains("ML0004", bad.Errors);
+        Assert.DoesNotContain("capacity", bad.Errors);
+        Assert.DoesNotContain("Add a public value", bad.Errors);
+    }
+
+    [Fact]
+    public void Collections_other_than_list_are_a_diagnostic()
+    {
+        foreach (var members in new[]
+        {
+            "Dictionary<string, I> V", "I[] V", "IReadOnlyList<I> V", "HashSet<I> V",
+        })
+        {
+            var dest = members.Replace("I>", "ID>").Replace("I[]", "ID[]");
+            var run = Build($$"""
+                public record I(int V); public record ID(int V);
+                public record P({{members}}); public record D({{dest}});
+                public static partial class M { [To] public static partial D Apply(P source); }
+                """);
+            Assert.Contains("ML0004", run.Errors);
+            Assert.DoesNotContain("capacity", run.Errors);
+        }
+    }
 }

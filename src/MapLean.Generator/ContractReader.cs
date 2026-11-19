@@ -70,6 +70,44 @@ internal static class ContractReader
     {
         plan = null!;
         fault = default;
+        var nullable = source.NullableAnnotation == NullableAnnotation.Annotated || IsNullableValue(source);
+        if (!nullable)
+            return TryCore(source, dest, sourceExpr, member, path, ref locals, warnings, out plan, out fault);
+
+        if (dest.NullableAnnotation == NullableAnnotation.NotAnnotated || (!dest.IsReferenceType && !IsNullableValue(dest)))
+        {
+            fault = Cannot(source, dest, sourceExpr);
+            return false;
+        }
+
+        if (!IsList(source, out _) && SymbolEqualityComparer.Default.Equals(source, dest))
+        {
+            plan = new Plan.Copy(sourceExpr);
+            return true;
+        }
+
+        var local = "ml" + locals++;
+        var inner = IsNullableValue(source) ? local + ".Value" : local;
+        if (!TryCore(Unwrap(source), Unwrap(dest), inner, member, path, ref locals, warnings, out var core, out fault))
+            return false;
+        var optional = dest.IsReferenceType && dest.NullableAnnotation != NullableAnnotation.Annotated ? "?" : "";
+        plan = new Plan.Guard(sourceExpr, local, core, Display(dest) + optional, !dest.IsReferenceType);
+        return true;
+    }
+
+    private static bool TryCore(
+        ITypeSymbol source,
+        ITypeSymbol dest,
+        string sourceExpr,
+        string member,
+        List<(ITypeSymbol Source, ITypeSymbol Dest)> path,
+        ref int locals,
+        List<Diag> warnings,
+        out Plan plan,
+        out Fault fault)
+    {
+        plan = null!;
+        fault = default;
         if (IsList(source, out var sourceElem) && IsList(dest, out var destElem))
         {
             var local = "ml" + locals++;
@@ -85,14 +123,9 @@ internal static class ContractReader
             return true;
         }
 
-        if (source is INamedTypeSymbol && dest is INamedTypeSymbol && !IsAtomic(source) && !IsAtomic(dest))
+        if (source is INamedTypeSymbol && dest is INamedTypeSymbol && !IsAtomic(source) && !IsAtomic(dest) &&
+            !IsNullableValue(dest) && !IsEnumerable(source) && !IsEnumerable(dest))
         {
-            if (source.NullableAnnotation == NullableAnnotation.Annotated && dest.NullableAnnotation != NullableAnnotation.Annotated)
-            {
-                fault = Cannot(source, dest, sourceExpr);
-                return false;
-            }
-
             foreach (var (seenSource, seenDest) in path)
             {
                 if (SymbolEqualityComparer.Default.Equals(seenSource, source) && SymbolEqualityComparer.Default.Equals(seenDest, dest))
@@ -102,23 +135,13 @@ internal static class ContractReader
                 }
             }
 
-            var root = sourceExpr;
-            string? nullLocal = null;
-            if (source.NullableAnnotation == NullableAnnotation.Annotated)
-            {
-                nullLocal = "ml" + locals++;
-                root = nullLocal;
-            }
-
             path.Add((source, dest));
-            var planned = TryObject(source, dest, root, path, ref locals, warnings, out var args, out var typeName, out var ctorCount, out fault);
+            var planned = TryObject(source, dest, sourceExpr, path, ref locals, warnings, out var args, out var typeName, out var ctorCount, out fault);
             path.RemoveAt(path.Count - 1);
             if (!planned)
                 return false;
 
-            plan = nullLocal is null
-                ? new Plan.Nested(typeName, args, ctorCount)
-                : new Plan.NullNested(sourceExpr, nullLocal, typeName, args);
+            plan = new Plan.Nested(typeName, args, ctorCount);
             return true;
         }
 
@@ -139,7 +162,7 @@ internal static class ContractReader
         out Fault fault)
     {
         args = default;
-        typeName = Display(dest);
+        typeName = Display(dest.WithNullableAnnotation(NullableAnnotation.NotAnnotated));
         ctorCount = 0;
         fault = default;
         if (dest is not INamedTypeSymbol named)
@@ -297,8 +320,22 @@ internal static class ContractReader
     private static bool IsAtomic(ITypeSymbol type)
         => type.SpecialType != SpecialType.None || type.TypeKind == TypeKind.Enum;
 
+    private static readonly SymbolDisplayFormat DisplayFormat = SymbolDisplayFormat.FullyQualifiedFormat
+        .AddMiscellaneousOptions(SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier);
+
     private static string Display(ITypeSymbol type)
-        => type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        => type.ToDisplayString(DisplayFormat);
+
+    private static bool IsNullableValue(ITypeSymbol type)
+        => type.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T;
+
+    private static ITypeSymbol Unwrap(ITypeSymbol type)
+        => IsNullableValue(type) ? ((INamedTypeSymbol)type).TypeArguments[0] : type;
+
+    private static bool IsEnumerable(ITypeSymbol type)
+        => type.SpecialType != SpecialType.System_String &&
+            (type.SpecialType == SpecialType.System_Collections_IEnumerable ||
+                type.AllInterfaces.Any(static contract => contract.SpecialType == SpecialType.System_Collections_IEnumerable));
 
     private static string Access(Accessibility accessibility)
         => accessibility == Accessibility.Internal ? "internal" : "public";
