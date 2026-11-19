@@ -1,22 +1,80 @@
 # MapLean
 
+MapLean copies public members of the same name into a partial method.
+
+## Install
+
+```bash
+dotnet add package MapLean
+```
+
+## Map a type
+
+Put `[To]` on a partial method. The method's class is partial. The method takes the source and returns the destination. MapLean writes the method body. Public members with the same name are copied. Nested values, nullable values, and `List<T>` are mapped.
+
+```csharp
+using MapLean;
+
+public static partial class PersonMap
+{
+    [To]
+    public static partial PersonDto Apply(Person source);
+}
+
+public sealed record Person(string Name);
+public sealed record PersonDto(string Name);
+```
+
+A destination member with no source keeps its value. MapLean reports [ML0006](#ml0006) unless you mark the member with `[Leave]`. A source member with no destination is left out.
+
+```csharp
+public sealed record PersonDto(string Name)
+{
+    [Leave]
+    public string Channel { get; init; } = "unset";
+}
+```
+
+The method's type is a top-level partial class, and that class and method are public or internal. MapLean reports [ML0007](#ml0007), [ML0008](#ml0008), or [ML0009](#ml0009) for the other shapes.
+
 ## Benchmark
 
-Version 0.0.1. Commit af1a33631d718aa6cd26025116c5794a95197a7e.
+Version pending. Commit pending.
 
-```
+## Diagnostics
 
-BenchmarkDotNet v0.14.0, Ubuntu 24.04.5 LTS (Noble Numbat)
-Intel Xeon Processor, 1 CPU, 4 logical and 4 physical cores
-.NET SDK 8.0.428
-  [Host]     : .NET 8.0.34 (8.0.3426.52217), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
-  DefaultJob : .NET 8.0.34 (8.0.3426.52217), X64 RyuJIT AVX-512F+CD+BW+DQ+VL+VBMI
+### ML0001
 
+Move `[To]` onto a partial method. That method takes the source and returns the destination.
 
-```
+### ML0002
 
-| Method | Mean | Error | Ratio | Allocated |
-| --- | ---: | ---: | ---: | ---: |
-| Manual | 141.4 ns | 2.73 ns | 1.00 | 504 B |
-| MapLean | 135.0 ns | 2.72 ns | 0.96 | 504 B |
-| AutoMapper | 274.6 ns | 3.92 ns | 1.94 | 560 B |
+Add `partial` to the method.
+
+### ML0003
+
+Give the method one source parameter and a destination return type.
+
+### ML0004
+
+Change the member so MapLean can copy it. MapLean copies matching types, nested objects, nullable objects, and `List<T>`.
+
+### ML0005
+
+Add a public member of that name on the source, or remove `required` from the destination member.
+
+### ML0006
+
+The destination member has no matching source member. Add a public member with that name on the source, or mark the destination member with `[Leave]` to keep its value.
+
+### ML0007
+
+Change the declaring type to a partial class. MapLean writes a partial class.
+
+### ML0008
+
+Move the declaring type out of the outer type. MapLean writes a top-level partial class.
+
+### ML0009
+
+Make the type or the method public or internal. MapLean repeats that accessibility on the generated partial.

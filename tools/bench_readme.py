@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT = ROOT / "bench/results/MapLean.Bench.MapBench-report-github.md"
 README = ROOT / "README.md"
 COLUMNS = ("Method", "Mean", "Error", "Ratio", "Allocated")
+MEASURED = ("Method", "Mean", "Error", "StdDev", "Ratio", "RatioSD", "Allocated")
+HEADING = "## Benchmark\n"
 
 
 def version_field():
@@ -24,6 +26,20 @@ def version_field():
     return found[0][1]
 
 
+def version_at(sha):
+    try:
+        text = subprocess.check_output(
+            ["git", "show", f"{sha}:src/MapLean/MapLean.csproj"],
+            cwd=ROOT,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    match = re.search(r"<Version>\s*([^<]+?)\s*</Version>", text)
+    return None if match is None else match.group(1)
+
+
 def commit():
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
@@ -32,31 +48,69 @@ def cells(line):
     return [part.strip() for part in line.strip().strip("|").split("|")]
 
 
-def parse_artifact(text):
+def parse_table(text):
+    table = [line for line in text.splitlines() if line.startswith("|")]
+    if len(table) < 3:
+        raise SystemExit("artifact table is missing")
+    header = cells(table[0])
+    missing = [name for name in MEASURED if name not in header]
+    if missing:
+        raise SystemExit(f"artifact is missing {missing}")
+    index = {name: header.index(name) for name in header}
+    rows = []
+    for line in table[2:]:
+        row = cells(line)
+        rows.append({name: row[index[name]] for name in MEASURED})
+    return rows
+
+
+def host_fence(text):
     start = text.find("```")
     end = text.find("```", start + 3)
     if start < 0 or end < 0:
         raise SystemExit("artifact has no host header fence")
-    host = text[start : end + 3].strip("\n")
-    table = [line for line in text[end + 3 :].splitlines() if line.startswith("|")]
-    if len(table) < 3:
-        raise SystemExit("artifact table is missing")
-    header = cells(table[0])
-    index = {name: header.index(name) for name in COLUMNS}
-    rows = []
-    for line in table[2:]:
-        row = cells(line)
-        rows.append(tuple(row[index[name]] for name in COLUMNS))
-    return host, rows
+    return text[start : end + 3].strip("\n")
 
 
-def section(host, rows, version, sha):
+def number(cell):
+    match = re.search(r"[-+]?\d+(?:\.\d+)?", cell.replace(",", ""))
+    if match is None:
+        raise SystemExit(f"no number in {cell}")
+    return float(match.group(0))
+
+
+def speed_sentence(rows):
+    by = {row["Method"]: row for row in rows}
+    manual = by["Manual"]
+    lean = by["MapLean"]
+    auto = by["AutoMapper"]
+    ratio = number(lean["Ratio"])
+    ratio_sd = number(lean["RatioSD"])
+    if abs(ratio - 1.0) <= ratio_sd:
+        against_manual = "the same speed as the hand-written map"
+    elif number(lean["Mean"]) < number(manual["Mean"]):
+        against_manual = "faster than the hand-written map"
+    else:
+        against_manual = "slower than the hand-written map"
+    factor = number(auto["Mean"]) / number(lean["Mean"])
+    nearest = round(factor)
+    if nearest > 0 and abs(factor - nearest) / nearest <= 0.15:
+        against_auto = f"about {nearest:g}x faster than AutoMapper"
+    else:
+        against_auto = f"{factor:.2f} times the speed of AutoMapper"
+    sentence = f"MapLean is {against_manual} and {against_auto}."
+    if manual["Allocated"] != lean["Allocated"]:
+        sentence += f" Manual allocates {manual['Allocated']} and MapLean allocates {lean['Allocated']}."
+    return sentence
+
+
+def benchmark_block(host, rows, version, sha):
     lines = [
-        "# MapLean",
-        "",
         "## Benchmark",
         "",
         f"Version {version}. Commit {sha}.",
+        "",
+        speed_sentence(rows),
         "",
         host,
         "",
@@ -64,40 +118,61 @@ def section(host, rows, version, sha):
         "| --- | ---: | ---: | ---: | ---: |",
     ]
     for row in rows:
-        lines.append("| " + " | ".join(row) + " |")
+        lines.append("| " + " | ".join(row[name] for name in COLUMNS) + " |")
     lines.append("")
     return "\n".join(lines)
 
 
-def parse_readme(text):
+def slice_bounds(text):
+    if text.startswith(HEADING):
+        start = 0
+    else:
+        found = text.find("\n" + HEADING)
+        if found < 0:
+            raise SystemExit("readme has no benchmark section")
+        start = found + 1
+    nxt = text.find("\n## ", start + len(HEADING))
+    end = len(text) if nxt < 0 else nxt + 1
+    return start, end
+
+
+def benchmark_slice(text):
+    start, end = slice_bounds(text)
+    return text[start:end].strip("\n")
+
+
+def parse_benchmark(text):
     version = re.search(r"^Version (\S+)\. Commit (\S+)\.$", text, re.M)
     if version is None:
         raise SystemExit("readme has no version line")
-    start = text.find("```")
-    end = text.find("```", start + 3)
-    if start < 0 or end < 0:
-        raise SystemExit("readme has no host header")
-    host = text[start : end + 3].strip("\n")
-    table = [line for line in text[end + 3 :].splitlines() if line.startswith("|")]
-    if len(table) < 3:
-        raise SystemExit("readme table is missing")
-    header = cells(table[0])
-    if tuple(header) != COLUMNS:
-        raise SystemExit(f"readme columns {header} are not {COLUMNS}")
-    rows = [tuple(cells(line)) for line in table[2:]]
-    return version.group(1), host, rows
+    sentence = re.search(r"^Version \S+\. Commit \S+\.\n\n(.+)\n\n```", text)
+    if sentence is None:
+        raise SystemExit("readme has no speed sentence")
+    host = host_fence(text)
+    rows = parse_table(text)
+    visible = [tuple(row[name] for name in COLUMNS) for row in rows]
+    return version.group(1), version.group(2), sentence.group(1), host, visible, rows
 
 
 def differences(readme_text, artifact_text, version):
-    got_version, got_host, got_rows = parse_readme(readme_text)
-    host, rows = parse_artifact(artifact_text)
+    block = benchmark_slice(readme_text)
+    got_version, got_sha, got_sentence, got_host, got_rows, _ = parse_benchmark(block)
+    host = host_fence(artifact_text)
+    rows = parse_table(artifact_text)
+    visible = [tuple(row[name] for name in COLUMNS) for row in rows]
     problems = []
     if got_version != version:
         problems.append(f"version {got_version} diverges from {version}")
+    cited = version_at(got_sha)
+    if cited != got_version:
+        problems.append(f"version {got_version} is not the version at {got_sha}")
     if got_host != host:
         problems.append("host header diverges from the artifact")
-    if got_rows != rows:
-        problems.append(f"table diverges from the artifact: {got_rows} != {rows}")
+    if got_rows != visible:
+        problems.append(f"table diverges from the artifact: {got_rows} != {visible}")
+    expected = speed_sentence(rows)
+    if got_sentence != expected:
+        problems.append(f"speed sentence diverges: {got_sentence!r} != {expected!r}")
     return problems
 
 
@@ -111,8 +186,13 @@ def main():
     version = version_field()
     artifact_text = args.artifact.read_text()
     if args.write:
-        host, rows = parse_artifact(artifact_text)
-        args.readme.write_text(section(host, rows, version, commit()))
+        host = host_fence(artifact_text)
+        rows = parse_table(artifact_text)
+        block = benchmark_block(host, rows, version, commit())
+        readme = args.readme.read_text()
+        start, end = slice_bounds(readme)
+        updated = readme[:start] + block + "\n" + readme[end:]
+        args.readme.write_text(updated)
         return
     problems = differences(args.readme.read_text(), artifact_text, version)
     if problems:

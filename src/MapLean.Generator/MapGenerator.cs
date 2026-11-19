@@ -8,14 +8,6 @@ namespace MapLean.Generator;
 [Generator]
 public sealed class MapGenerator : IIncrementalGenerator
 {
-    private static readonly DiagnosticDescriptor Rule = new(
-        MapDiagnostics.Id,
-        "Map contract",
-        "{0}",
-        "MapLean",
-        DiagnosticSeverity.Error,
-        isEnabledByDefault: true);
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var contracts = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -28,19 +20,13 @@ public sealed class MapGenerator : IIncrementalGenerator
         {
             if (result is ContractResult.Bad bad)
             {
-                var location = bad.Path.Length == 0
-                    ? Location.None
-                    : Location.Create(
-                        bad.Path,
-                        new TextSpan(bad.Start, bad.Length),
-                        new LinePositionSpan(
-                            new LinePosition(bad.StartLine, bad.StartCharacter),
-                            new LinePosition(bad.EndLine, bad.EndCharacter)));
-                source.ReportDiagnostic(Diagnostic.Create(Rule, location, bad.Message));
+                source.ReportDiagnostic(MapDiagnostics.Create(bad.Problem));
                 return;
             }
 
             var ok = (ContractResult.Ok)result;
+            for (var i = 0; i < ok.Warnings.Length; i++)
+                source.ReportDiagnostic(MapDiagnostics.Create(ok.Warnings[i]));
             source.AddSource(ok.Hint, SourceText.From(SourceEmitter.Emit(ok.Contract), Encoding.UTF8));
         });
     }

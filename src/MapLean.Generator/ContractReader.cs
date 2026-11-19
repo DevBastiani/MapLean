@@ -10,27 +10,41 @@ internal static class ContractReader
     public static ContractResult Read(GeneratorAttributeSyntaxContext ctx)
     {
         if (ctx.TargetNode is not MethodDeclarationSyntax methodSyntax || ctx.TargetSymbol is not IMethodSymbol method)
-            return Fail(ctx.TargetNode, "Put To on a partial method.");
+            return Bad(ctx.TargetNode, MapDiagnostics.ToTarget);
+
+        var type = method.ContainingType;
+        if (type.ContainingType is not null)
+            return Bad(methodSyntax.Identifier, MapDiagnostics.Nested, type.Name, type.ContainingType.Name);
+
+        if (type.TypeKind != TypeKind.Class || type.IsRecord)
+            return Bad(methodSyntax.Identifier, MapDiagnostics.TypeKind, type.Name, KindName(type));
+
+        if (!Supported(type.DeclaredAccessibility))
+            return Bad(methodSyntax.Identifier, MapDiagnostics.Access, type.Name);
+
+        if (!Supported(method.DeclaredAccessibility))
+            return Bad(methodSyntax.Identifier, MapDiagnostics.Access, method.Name);
 
         if (!methodSyntax.Modifiers.Any(static m => m.IsKind(SyntaxKind.PartialKeyword)))
-            return Fail(methodSyntax.Identifier.GetLocation(), "The method must be partial.");
+            return Bad(methodSyntax.Identifier, MapDiagnostics.Partial, method.Name);
 
         if (method.Parameters.Length != 1 || method.ReturnsVoid || method.Arity != 0)
-            return Fail(methodSyntax.Identifier.GetLocation(), "The method needs one source parameter and a destination return type.");
+            return Bad(methodSyntax.Identifier, MapDiagnostics.Signature, method.Name);
 
         var parameter = method.Parameters[0];
         var locals = 0;
-        if (!TryPlan(parameter.Type, method.ReturnType, parameter.Name, ref locals, out var plan, out var error))
-            return Fail(methodSyntax.Identifier.GetLocation(), error);
+        var warnings = new List<Diag>();
+        if (!TryPlan(parameter.Type, method.ReturnType, parameter.Name, ref locals, warnings, out var plan, out var fault))
+            return Bad(methodSyntax.Identifier, fault);
 
         var ns = method.ContainingNamespace is null || method.ContainingNamespace.IsGlobalNamespace
             ? null
             : method.ContainingNamespace.ToDisplayString();
         var contract = new MapContract(
             ns,
-            Access(method.ContainingType.DeclaredAccessibility),
-            method.ContainingType.IsStatic,
-            method.ContainingType.Name,
+            Access(type.DeclaredAccessibility),
+            type.IsStatic,
+            type.Name,
             Access(method.DeclaredAccessibility),
             method.IsStatic,
             method.Name,
@@ -38,18 +52,25 @@ internal static class ContractReader
             Display(method.ReturnType),
             parameter.Name,
             plan);
-        var hint = method.ContainingType.Name + "." + method.Name + ".g.cs";
-        return new ContractResult.Ok(contract, hint);
+        var hint = type.Name + "." + method.Name + ".g.cs";
+        return new ContractResult.Ok(contract, hint, new EquatableArray<Diag>(warnings));
     }
 
-    private static bool TryPlan(ITypeSymbol source, ITypeSymbol dest, string sourceExpr, ref int locals, out Plan plan, out string error)
+    private static bool TryPlan(
+        ITypeSymbol source,
+        ITypeSymbol dest,
+        string sourceExpr,
+        ref int locals,
+        List<Diag> warnings,
+        out Plan plan,
+        out Fault fault)
     {
         plan = null!;
-        error = "";
+        fault = default;
         if (IsList(source, out var sourceElem) && IsList(dest, out var destElem))
         {
             var local = "ml" + locals++;
-            if (!TryPlan(sourceElem, destElem, local + "Item", ref locals, out var element, out error))
+            if (!TryPlan(sourceElem, destElem, local + "Item", ref locals, warnings, out var element, out fault))
                 return false;
             plan = new Plan.List(sourceExpr, local, Display(destElem), element);
             return true;
@@ -65,7 +86,7 @@ internal static class ContractReader
         {
             if (source.NullableAnnotation == NullableAnnotation.Annotated && dest.NullableAnnotation != NullableAnnotation.Annotated)
             {
-                error = $"Cannot map {source.ToDisplayString()} to {dest.ToDisplayString()} for {sourceExpr}.";
+                fault = Cannot(source, dest, sourceExpr);
                 return false;
             }
 
@@ -77,7 +98,7 @@ internal static class ContractReader
                 root = nullLocal;
             }
 
-            if (!TryObject(source, dest, root, ref locals, out var args, out var typeName, out var ctorCount, out error))
+            if (!TryObject(source, dest, root, ref locals, warnings, out var args, out var typeName, out var ctorCount, out fault))
                 return false;
 
             plan = nullLocal is null
@@ -86,7 +107,7 @@ internal static class ContractReader
             return true;
         }
 
-        error = $"Cannot map {source.ToDisplayString()} to {dest.ToDisplayString()} for {sourceExpr}.";
+        fault = Cannot(source, dest, sourceExpr);
         return false;
     }
 
@@ -95,25 +116,26 @@ internal static class ContractReader
         ITypeSymbol dest,
         string sourceExpr,
         ref int locals,
-        out ImmutableArray<Arg> args,
+        List<Diag> warnings,
+        out EquatableArray<Arg> args,
         out string typeName,
         out int ctorCount,
-        out string error)
+        out Fault fault)
     {
-        args = ImmutableArray<Arg>.Empty;
+        args = default;
         typeName = Display(dest);
         ctorCount = 0;
-        error = "";
+        fault = default;
         if (dest is not INamedTypeSymbol named)
         {
-            error = $"Cannot map {source.ToDisplayString()} to {dest.ToDisplayString()} for {sourceExpr}.";
+            fault = Cannot(source, dest, sourceExpr);
             return false;
         }
 
         var ctor = ChooseCtor(named);
         if (ctor is null)
         {
-            error = $"Cannot map {source.ToDisplayString()} to {dest.ToDisplayString()} for {sourceExpr}.";
+            fault = Cannot(source, dest, sourceExpr);
             return false;
         }
 
@@ -123,12 +145,12 @@ internal static class ContractReader
         {
             bound.Add(parameter.Name);
             ctorCount++;
-            var property = PublicProperty(source, parameter.Name);
-            if (property is null)
+            var destProperty = PublicProperty(named, parameter.Name);
+            if (IsLeave(parameter) || (destProperty is not null && IsLeave(destProperty)))
             {
                 if (!parameter.HasExplicitDefaultValue)
                 {
-                    error = $"{parameter.Name} is required and has no source member.";
+                    fault = new Fault(MapDiagnostics.Required, parameter.Name);
                     return false;
                 }
 
@@ -136,7 +158,20 @@ internal static class ContractReader
                 continue;
             }
 
-            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + parameter.Name, ref locals, out var child, out error))
+            var property = PublicProperty(source, parameter.Name);
+            if (property is null)
+            {
+                if (!parameter.HasExplicitDefaultValue)
+                {
+                    fault = new Fault(MapDiagnostics.Required, parameter.Name);
+                    return false;
+                }
+
+                built.Add(new Arg(parameter.Name, new Plan.Copy("default")));
+                continue;
+            }
+
+            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + parameter.Name, ref locals, warnings, out var child, out fault))
                 return false;
             built.Add(new Arg(parameter.Name, child));
         }
@@ -148,23 +183,25 @@ internal static class ContractReader
             if (property.SetMethod is not { DeclaredAccessibility: Accessibility.Public })
                 continue;
             var from = PublicProperty(source, property.Name);
-            if (from is null)
+            if (from is null || IsLeave(property))
             {
-                if (property.IsRequired)
+                if (from is null && property.IsRequired)
                 {
-                    error = $"{property.Name} is required and has no source member.";
+                    fault = new Fault(MapDiagnostics.Required, property.Name);
                     return false;
                 }
 
+                if (from is null && !IsLeave(property))
+                    warnings.Add(At(property, MapDiagnostics.Left, named.Name + "." + property.Name));
                 continue;
             }
 
-            if (!TryPlan(from.Type, property.Type, sourceExpr + "." + property.Name, ref locals, out var child, out error))
+            if (!TryPlan(from.Type, property.Type, sourceExpr + "." + property.Name, ref locals, warnings, out var child, out fault))
                 return false;
             built.Add(new Arg(property.Name, child));
         }
 
-        args = built.ToImmutable();
+        args = new EquatableArray<Arg>(built.ToImmutable());
         return true;
     }
 
@@ -194,6 +231,20 @@ internal static class ContractReader
     private static IPropertySymbol? PublicProperty(ITypeSymbol type, string name)
         => PublicProperties(type).FirstOrDefault(property => property.Name == name);
 
+    private static bool IsLeave(ISymbol symbol)
+    {
+        foreach (var attribute in symbol.GetAttributes())
+        {
+            var type = attribute.AttributeClass;
+            if (type is null)
+                continue;
+            if (type.Name == "LeaveAttribute" && type.ContainingNamespace.ToDisplayString() == "MapLean")
+                return true;
+        }
+
+        return false;
+    }
+
     private static bool IsList(ITypeSymbol type, out ITypeSymbol element)
     {
         if (type is INamedTypeSymbol named &&
@@ -217,14 +268,41 @@ internal static class ContractReader
     private static string Access(Accessibility accessibility)
         => accessibility == Accessibility.Internal ? "internal" : "public";
 
-    private static ContractResult.Bad Fail(SyntaxNode node, string message)
-        => Fail(node.GetLocation(), message);
+    private static bool Supported(Accessibility accessibility)
+        => accessibility is Accessibility.Public or Accessibility.Internal;
 
-    private static ContractResult.Bad Fail(Location location, string message)
+    private static string KindName(ITypeSymbol type)
+    {
+        if (type.IsRecord)
+            return "record";
+        if (type.TypeKind == TypeKind.Struct)
+            return "struct";
+        return type.TypeKind.ToString().ToLowerInvariant();
+    }
+
+    private static Fault Cannot(ITypeSymbol source, ITypeSymbol dest, string sourceExpr)
+        => new(MapDiagnostics.CannotMap, source.ToDisplayString(), dest.ToDisplayString(), sourceExpr);
+
+    private static ContractResult.Bad Bad(SyntaxNode node, string id, params string[] args)
+        => new(At(node.GetLocation(), id, args));
+
+    private static ContractResult.Bad Bad(SyntaxToken token, string id, params string[] args)
+        => new(At(token.GetLocation(), id, args));
+
+    private static ContractResult.Bad Bad(SyntaxToken token, Fault fault)
+    {
+        var args = new string[fault.Args.Length];
+        for (var i = 0; i < args.Length; i++)
+            args[i] = fault.Args[i];
+        return Bad(token, fault.Id, args);
+    }
+
+    private static Diag At(Location location, string id, params string[] args)
     {
         var span = location.GetLineSpan();
-        return new ContractResult.Bad(
-            message,
+        return new Diag(
+            id,
+            new EquatableArray<string>(args),
             location.SourceTree?.FilePath ?? "",
             span.StartLinePosition.Line,
             span.StartLinePosition.Character,
@@ -232,5 +310,16 @@ internal static class ContractReader
             span.EndLinePosition.Character,
             location.SourceSpan.Start,
             location.SourceSpan.Length);
+    }
+
+    private static Diag At(ISymbol symbol, string id, params string[] args)
+        => At(symbol.Locations.FirstOrDefault() ?? Location.None, id, args);
+
+    private readonly record struct Fault(string Id, EquatableArray<string> Args)
+    {
+        public Fault(string id, params string[] args)
+            : this(id, new EquatableArray<string>(args))
+        {
+        }
     }
 }

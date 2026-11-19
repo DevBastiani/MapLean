@@ -25,6 +25,7 @@ public sealed class CorpusTests
             public sealed record LineItemDto(string Sku, int Qty);
             public sealed record OrderDto(string Id, AddressDto ShipTo, AddressDto? BillTo, List<LineItemDto> Lines, string? Note)
             {
+                [Leave]
                 public string Channel { get; init; } = "unset";
             }
 
@@ -56,6 +57,8 @@ public sealed class CorpusTests
             """);
 
         Assert.DoesNotContain("ML0001", run.Errors);
+        Assert.DoesNotContain("ML0006", run.Warnings);
+        Assert.DoesNotContain("Audit", run.Warnings);
         Assert.DoesNotContain("Audit", run.Generated);
         Assert.DoesNotContain("Channel", run.Generated);
         var probe = run.Assembly.GetType("Demo.Probe")!;
@@ -214,20 +217,24 @@ public sealed class CorpusTests
         var marked = Compile("""
             using MapLean;
             namespace Demo;
-            public sealed record Src(string Name, string Extra);
+            public sealed record Src(string Name);
             public sealed record Dst(string Name) { [Leave] public string Extra { get; init; } = "kept"; }
             public sealed class IgnoreAttribute : System.Attribute {}
             public sealed record Other(string Name) { [Ignore] public string Extra { get; init; } = "open"; }
             public static partial class M { [To] public static partial Dst Apply(Src source); }
             public static partial class N { [To] public static partial Other Apply(Src source); }
+            public sealed record WithSource(string Name, string Extra);
+            public sealed record Held(string Name) { [Leave] public string Extra { get; init; } = "held"; }
+            public static partial class P { [To] public static partial Held Apply(WithSource source); }
             public static class Probe
             {
-                public static string Run() => M.Apply(new Src("ada", "from-source")).Extra + "|" + N.Apply(new Src("ada", "from-source")).Extra;
+                public static string Run() => M.Apply(new Src("ada")).Extra + "|" + N.Apply(new Src("ada")).Extra + "|" + P.Apply(new WithSource("ada", "from-source")).Extra;
             }
             """);
         Assert.DoesNotContain("Dst.Extra", marked.Warnings);
+        Assert.DoesNotContain("Held.Extra", marked.Warnings);
         Assert.Contains("Other.Extra", marked.Warnings);
-        Assert.Equal("kept|open", marked.Assembly.GetType("Demo.Probe")!.GetMethod("Run")!.Invoke(null, null));
+        Assert.Equal("kept|open|held", marked.Assembly.GetType("Demo.Probe")!.GetMethod("Run")!.Invoke(null, null));
     }
 
     [Fact]
