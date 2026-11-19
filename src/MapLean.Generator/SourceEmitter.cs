@@ -28,7 +28,7 @@ internal static class SourceEmitter
         if (contract.MethodIsStatic)
             builder.Append("static ");
         builder.Append("partial ").Append(contract.DestType).Append(' ').Append(contract.MethodName).Append('(');
-        builder.Append(contract.SourceType).Append(' ').Append(contract.ParameterName).AppendLine(")");
+        builder.Append(contract.ParameterModifiers).Append(contract.SourceType).Append(' ').Append(contract.ParameterName).AppendLine(")");
         builder.Append(indent).AppendLine("    {");
         foreach (var line in preludes)
             builder.Append(indent).Append("        ").AppendLine(line);
@@ -51,8 +51,15 @@ internal static class SourceEmitter
                 var ctorArgs = new List<string>();
                 var initArgs = new List<string>();
                 var deferred = new List<string>();
+                var named = false;
                 for (var i = 0; i < nested.Args.Length; i++)
                 {
+                    if (nested.Args[i].Value is Plan.Skip)
+                    {
+                        named = true;
+                        continue;
+                    }
+
                     var local = new List<string>();
                     var expr = EmitExpr(nested.Args[i].Value, local);
                     if (local.Exists(static line => line.StartsWith("for ", StringComparison.Ordinal)))
@@ -60,7 +67,7 @@ internal static class SourceEmitter
                     else
                         deferred.AddRange(local);
                     if (i < nested.CtorCount)
-                        ctorArgs.Add(expr);
+                        ctorArgs.Add(named ? nested.Args[i].Name + ": " + expr : expr);
                     else
                         initArgs.Add(nested.Args[i].Name + " = " + expr);
                 }
@@ -72,15 +79,23 @@ internal static class SourceEmitter
                     return created;
                 return created + " { " + string.Join(", ", initArgs) + " }";
             }
-            case Plan.NullNested nullNested:
+            case Plan.Guard guard:
             {
-                preludes.Add($"var {nullNested.Local} = {nullNested.Path};");
                 var inner = new List<string>();
-                var args = new string[nullNested.Args.Length];
-                for (var i = 0; i < nullNested.Args.Length; i++)
-                    args[i] = EmitExpr(nullNested.Args[i].Value, inner);
-                preludes.AddRange(inner);
-                return $"{nullNested.Local} is null ? null : new {nullNested.Type}(" + string.Join(", ", args) + ")";
+                var expression = EmitExpr(guard.Inner, inner);
+                preludes.Add($"var {guard.Local} = {guard.Path};");
+                var none = guard.IsValue ? $"default({guard.ResultType})" : "null";
+                if (inner.Count == 0)
+                    return $"{guard.Local} is null ? {none} : {expression}";
+                var result = guard.Local + "Res";
+                preludes.Add($"{guard.ResultType} {result} = {none};");
+                preludes.Add($"if ({guard.Local} is not null)");
+                preludes.Add("{");
+                foreach (var line in inner)
+                    preludes.Add("    " + line);
+                preludes.Add($"    {result} = {expression};");
+                preludes.Add("}");
+                return result;
             }
             case Plan.List list:
             {

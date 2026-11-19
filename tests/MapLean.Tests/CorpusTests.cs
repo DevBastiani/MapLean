@@ -129,7 +129,7 @@ public sealed class CorpusTests
             using MapLean;
             namespace Demo;
             public sealed class Src { public string Name { get; init; } = ""; }
-            public sealed record Dst(string Name, string Region);
+            public sealed class Dst { public required string Name { get; init; } public required string Region { get; init; } }
             public static partial class M { [To] public static partial Dst Apply(Src source); }
             """);
         Assert.Contains("ML0005", run.Errors);
@@ -319,7 +319,7 @@ public sealed class CorpusTests
         Assert.Equal("", run.Generated);
     }
 
-    private static Run Compile(string source)
+    internal static Run Compile(string source)
     {
         var tree = CSharpSyntaxTree.ParseText(source, path: "corpus.cs");
         var refs = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
@@ -329,7 +329,7 @@ public sealed class CorpusTests
             "corpus",
             new[] { tree },
             refs,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(new MapGenerator());
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiags);
         var mapLean = generatorDiags.Where(diagnostic => diagnostic.Id.StartsWith("ML", StringComparison.Ordinal)).ToArray();
@@ -339,23 +339,24 @@ public sealed class CorpusTests
             "\n",
             output.SyntaxTrees.Where(treeItem => treeItem.FilePath.EndsWith(".g.cs", StringComparison.Ordinal)).Select(treeItem => treeItem.ToString()));
         if (errors.Length != 0 || generated.Length == 0)
-            return new Run(errors, warnings, generated, null!);
+            return new Run(errors, warnings, generated, null!, "");
 
         using var pe = new MemoryStream();
         var emit = output.Emit(pe);
         if (!emit.Success)
         {
             var emitErrors = string.Join("\n", emit.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Error).Select(diagnostic => diagnostic.Id + " " + diagnostic.GetMessage()));
-            return new Run(errors + emitErrors, warnings, generated, null!);
+            return new Run(errors + emitErrors, warnings, generated, null!, "");
         }
 
+        var build = string.Join("\n", emit.Diagnostics.Where(diagnostic => diagnostic.Severity == DiagnosticSeverity.Warning).Select(diagnostic => diagnostic.Id + " " + diagnostic.GetMessage()));
         pe.Position = 0;
         var assembly = new AssemblyLoadContext("corpus", true).LoadFromStream(pe);
-        return new Run(errors, warnings, generated, assembly);
+        return new Run(errors, warnings, generated, assembly, build);
     }
 
     private static string Format(Diagnostic diagnostic)
         => diagnostic.Id + " " + diagnostic.GetMessage() + " " + diagnostic.Descriptor.HelpLinkUri;
 
-    private sealed record Run(string Errors, string Warnings, string Generated, Assembly Assembly);
+    internal sealed record Run(string Errors, string Warnings, string Generated, Assembly Assembly, string Build);
 }

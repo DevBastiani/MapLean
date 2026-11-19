@@ -10,9 +10,11 @@ internal abstract record Plan
 
     internal sealed record Copy(string Path) : Plan;
 
+    internal sealed record Skip : Plan;
+
     internal sealed record Nested(string Type, EquatableArray<Arg> Args, int CtorCount) : Plan;
 
-    internal sealed record NullNested(string Path, string Local, string Type, EquatableArray<Arg> Args) : Plan;
+    internal sealed record Guard(string Path, string Local, Plan Inner, string ResultType, bool IsValue) : Plan;
 
     internal sealed record List(string Path, string Local, string ElementType, Plan Element) : Plan;
 }
@@ -27,6 +29,7 @@ internal sealed record MapContract(
     string MethodName,
     string SourceType,
     string DestType,
+    string ParameterModifiers,
     string ParameterName,
     Plan Root);
 
