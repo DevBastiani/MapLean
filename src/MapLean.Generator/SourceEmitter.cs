@@ -51,8 +51,15 @@ internal static class SourceEmitter
                 var ctorArgs = new List<string>();
                 var initArgs = new List<string>();
                 var deferred = new List<string>();
+                var named = false;
                 for (var i = 0; i < nested.Args.Length; i++)
                 {
+                    if (nested.Args[i].Value is Plan.Skip)
+                    {
+                        named = true;
+                        continue;
+                    }
+
                     var local = new List<string>();
                     var expr = EmitExpr(nested.Args[i].Value, local);
                     if (local.Exists(static line => line.StartsWith("for ", StringComparison.Ordinal)))
@@ -60,7 +67,7 @@ internal static class SourceEmitter
                     else
                         deferred.AddRange(local);
                     if (i < nested.CtorCount)
-                        ctorArgs.Add(expr);
+                        ctorArgs.Add(named ? nested.Args[i].Name + ": " + expr : expr);
                     else
                         initArgs.Add(nested.Args[i].Name + " = " + expr);
                 }

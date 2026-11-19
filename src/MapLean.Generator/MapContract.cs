@@ -10,6 +10,8 @@ internal abstract record Plan
 
     internal sealed record Copy(string Path) : Plan;
 
+    internal sealed record Skip : Plan;
+
     internal sealed record Nested(string Type, EquatableArray<Arg> Args, int CtorCount) : Plan;
 
     internal sealed record Guard(string Path, string Local, Plan Inner, string ResultType, bool IsValue) : Plan;

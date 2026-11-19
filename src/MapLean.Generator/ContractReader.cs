@@ -178,41 +178,43 @@ internal static class ContractReader
             return false;
         }
 
-        var bound = new HashSet<string>(StringComparer.Ordinal);
+        var bound = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var built = ImmutableArray.CreateBuilder<Arg>();
         foreach (var parameter in ctor.Parameters)
         {
             bound.Add(parameter.Name);
             ctorCount++;
-            var destProperty = PublicProperty(named, parameter.Name);
+            var name = Escape(parameter.Name);
+            var destProperty = ForParameter(named, parameter.Name);
             if (IsLeave(parameter) || (destProperty is not null && IsLeave(destProperty)))
             {
                 if (!parameter.HasExplicitDefaultValue)
                 {
-                    fault = new Fault(MapDiagnostics.Required, parameter.Name);
+                    fault = new Fault(MapDiagnostics.Parameter, parameter.Name);
                     return false;
                 }
 
-                built.Add(new Arg(parameter.Name, new Plan.Copy("default")));
+                built.Add(new Arg(name, new Plan.Skip()));
                 continue;
             }
 
-            var property = PublicProperty(source, parameter.Name);
+            var property = ForParameter(source, parameter.Name);
             if (property is null)
             {
                 if (!parameter.HasExplicitDefaultValue)
                 {
-                    fault = new Fault(MapDiagnostics.Required, parameter.Name);
+                    fault = new Fault(MapDiagnostics.Parameter, parameter.Name);
                     return false;
                 }
 
-                built.Add(new Arg(parameter.Name, new Plan.Copy("default")));
+                warnings.Add(At(parameter, MapDiagnostics.Left, named.Name + "." + parameter.Name));
+                built.Add(new Arg(name, new Plan.Skip()));
                 continue;
             }
 
-            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + parameter.Name, named.Name + "." + parameter.Name, path, ref locals, warnings, out var child, out fault))
+            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + property.Name, named.Name + "." + parameter.Name, path, ref locals, warnings, out var child, out fault))
                 return false;
-            built.Add(new Arg(parameter.Name, child));
+            built.Add(new Arg(name, child));
         }
 
         foreach (var property in PublicProperties(named))
@@ -237,7 +239,7 @@ internal static class ContractReader
 
             if (!TryPlan(from.Type, property.Type, sourceExpr + "." + property.Name, named.Name + "." + property.Name, path, ref locals, warnings, out var child, out fault))
                 return false;
-            built.Add(new Arg(property.Name, child));
+            built.Add(new Arg(Escape(property.Name), child));
         }
 
         args = new EquatableArray<Arg>(built.ToImmutable());
@@ -288,6 +290,13 @@ internal static class ContractReader
 
     private static IPropertySymbol? PublicProperty(ITypeSymbol type, string name)
         => PublicProperties(type).FirstOrDefault(property => property.Name == name);
+
+    private static IPropertySymbol? ForParameter(ITypeSymbol type, string name)
+        => PublicProperty(type, name)
+            ?? PublicProperties(type).FirstOrDefault(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase));
+
+    private static string Escape(string name)
+        => SyntaxFacts.GetKeywordKind(name) == SyntaxKind.None ? name : "@" + name;
 
     private static bool IsLeave(ISymbol symbol)
     {

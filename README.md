@@ -103,3 +103,7 @@ Make the type or the method public or internal. MapLean repeats that accessibili
 ### ML0010
 
 Mark the destination member with `[Leave]` and set it yourself. The type refers back to itself, directly or through another type or a `List<T>`, and MapLean does not map recursive types.
+
+### ML0011
+
+A constructor parameter has no default value and MapLean has no source for it. Add a public member with that name on the source, or give the parameter a default value. A parameter marked `[Leave]` needs a default value too, so the generated call can leave it out.

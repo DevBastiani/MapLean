@@ -129,7 +129,7 @@ public sealed class CorpusTests
             using MapLean;
             namespace Demo;
             public sealed class Src { public string Name { get; init; } = ""; }
-            public sealed record Dst(string Name, string Region);
+            public sealed class Dst { public required string Name { get; init; } public required string Region { get; init; } }
             public static partial class M { [To] public static partial Dst Apply(Src source); }
             """);
         Assert.Contains("ML0005", run.Errors);

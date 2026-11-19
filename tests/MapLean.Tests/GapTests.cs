@@ -234,4 +234,84 @@ public sealed class GapTests
             Assert.DoesNotContain("capacity", run.Errors);
         }
     }
+
+    [Fact]
+    public void Constructor_parameter_defaults_survive_leave_and_missing_sources()
+    {
+        var left = Build("""
+            public record P(string Name);
+            public record D(string Name, [Leave] string Channel = "unset");
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() => M.Apply(new P("x")).Channel; }
+            """);
+        Assert.DoesNotContain("ML0006", left.Warnings);
+        Assert.Equal("unset", Result(left));
+
+        var open = Build("""
+            public record P(string Name);
+            public record D(string Name, int Retries = 3);
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() => M.Apply(new P("x")).Retries.ToString(); }
+            """);
+        Assert.Contains("ML0006", open.Warnings);
+        Assert.Contains("D.Retries", open.Warnings);
+        Assert.Equal("3", Result(open));
+
+        var middle = Build("""
+            public record P(string Name, string Tail);
+            public record D(string Name, [Leave] string Mid = "m", string Tail = "t");
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() { var d = M.Apply(new P("x", "real")); return d.Name + "|" + d.Mid + "|" + d.Tail; } }
+            """);
+        Assert.Equal("x|m|real", Result(middle));
+    }
+
+    [Fact]
+    public void Camel_case_constructor_parameter_binds_to_the_source_property()
+    {
+        var run = Build("""
+            public class P { public string Name { get; set; } = ""; public int Age { get; set; } }
+            public class D { public D(string name) { Name = name; } public string Name { get; } public int Age { get; set; } }
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() { var d = M.Apply(new P { Name = "x", Age = 3 }); return d.Name + "|" + d.Age; } }
+            """);
+        Assert.Equal("", run.Warnings);
+        Assert.Equal("x|3", Result(run));
+
+        var exact = Build("""
+            public class P { public string Name { get; set; } = "upper"; public string name { get; set; } = "lower"; }
+            public class D { public D(string name) { Name = name; } public string Name { get; } }
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() => M.Apply(new P()).Name; }
+            """);
+        Assert.Equal("lower", Result(exact));
+    }
+
+    [Fact]
+    public void Constructor_parameter_without_source_or_default_has_its_own_diagnostic()
+    {
+        var run = Build("""
+            public sealed class Src { public string Name { get; init; } = ""; }
+            public sealed record Dst(string Name, string Region);
+            public static partial class M { [To] public static partial Dst Apply(Src source); }
+            """);
+        Assert.Contains("ML0011", run.Errors);
+        Assert.Contains("Region", run.Errors);
+        Assert.DoesNotContain("required", run.Errors);
+        Assert.DoesNotContain("ML0005", run.Errors);
+        Assert.Contains("https://github.com/DevBastiani/MapLean#ml0011", run.Errors);
+    }
+
+    [Fact]
+    public void Nullable_nested_object_with_a_skipped_default_parameter_still_compiles()
+    {
+        var run = Build("""
+            public record A(string City, string Zone);
+            public record AD(string City, [Leave] string Zone = "z");
+            public record Q(A? Addr); public record E(AD? Addr);
+            public static partial class M { [To] public static partial E Apply(Q source); }
+            public static class Probe { public static string Run() => M.Apply(new Q(new A("c", "other"))).Addr!.Zone; }
+            """);
+        Assert.Equal("z", Result(run));
+    }
 }
