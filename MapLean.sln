@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{33864CB0-4957-4260-B70C-B13D07F8A115}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapLean.Graph", "src\MapLean.Graph\MapLean.Graph.csproj", "{8AD1D2E2-BD02-48EA-A514-2D25F40B7FBC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{C579A1AF-70C5-4CF8-AC0F-0FA9413BBD15}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MapLean.Graph.Tests", "tests\MapLean.Graph.Tests\MapLean.Graph.Tests.csproj", "{1AA3FFDE-4573-4B24-8805-D7E78B7D71B2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8AD1D2E2-BD02-48EA-A514-2D25F40B7FBC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8AD1D2E2-BD02-48EA-A514-2D25F40B7FBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8AD1D2E2-BD02-48EA-A514-2D25F40B7FBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8AD1D2E2-BD02-48EA-A514-2D25F40B7FBC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1AA3FFDE-4573-4B24-8805-D7E78B7D71B2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1AA3FFDE-4573-4B24-8805-D7E78B7D71B2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1AA3FFDE-4573-4B24-8805-D7E78B7D71B2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1AA3FFDE-4573-4B24-8805-D7E78B7D71B2}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{8AD1D2E2-BD02-48EA-A514-2D25F40B7FBC} = {33864CB0-4957-4260-B70C-B13D07F8A115}
+		{1AA3FFDE-4573-4B24-8805-D7E78B7D71B2} = {C579A1AF-70C5-4CF8-AC0F-0FA9413BBD15}
+	EndGlobalSection
+EndGlobal
