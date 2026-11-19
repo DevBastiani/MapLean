@@ -28,7 +28,7 @@ internal static class SourceEmitter
         if (contract.MethodIsStatic)
             builder.Append("static ");
         builder.Append("partial ").Append(contract.DestType).Append(' ').Append(contract.MethodName).Append('(');
-        builder.Append(contract.SourceType).Append(' ').Append(contract.ParameterName).AppendLine(")");
+        builder.Append(contract.ParameterModifiers).Append(contract.SourceType).Append(' ').Append(contract.ParameterName).AppendLine(")");
         builder.Append(indent).AppendLine("    {");
         foreach (var line in preludes)
             builder.Append(indent).Append("        ").AppendLine(line);

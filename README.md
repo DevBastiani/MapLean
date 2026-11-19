@@ -74,7 +74,7 @@ Add `partial` to the method.
 
 ### ML0003
 
-Give the method one source parameter and a destination return type.
+Give the method one source parameter, passed by value or with `in`, and a destination return type. `ref` and `out` are not supported.
 
 ### ML0004
 
@@ -90,7 +90,7 @@ The destination member has no matching source member. Add a public member with t
 
 ### ML0007
 
-Change the declaring type to a partial class. MapLean writes a partial class.
+Change the declaring type to a partial class, and add `partial` if the class lacks it. MapLean writes a partial class.
 
 ### ML0008
 

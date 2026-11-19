@@ -314,4 +314,51 @@ public sealed class GapTests
             """);
         Assert.Equal("z", Result(run));
     }
+
+    [Fact]
+    public void Extension_in_and_keyword_named_parameters_are_supported()
+    {
+        var run = Build("""
+            public record P(string Name); public record D(string Name);
+            public static partial class M
+            {
+                [To] public static partial D ToDto(this P source);
+                [To] public static partial D ByIn(in P source);
+                [To] public static partial D Keyword(P @class);
+            }
+            public static class Probe { public static string Run() { var p = new P("x"); return p.ToDto().Name + M.ByIn(in p).Name + M.Keyword(p).Name; } }
+            """);
+        Assert.Equal("xxx", Result(run));
+    }
+
+    [Fact]
+    public void Ref_and_out_parameters_are_the_signature_diagnostic()
+    {
+        foreach (var modifier in new[] { "ref", "out", "ref readonly" })
+        {
+            var run = Build($$"""
+                public record P(string Name); public record D(string Name);
+                public static partial class M { [To] public static partial D Apply({{modifier}} P source); }
+                """);
+            Assert.Contains("ML0003", run.Errors);
+        }
+    }
+
+    [Fact]
+    public void Generic_container_is_supported_and_a_container_without_partial_is_a_diagnostic()
+    {
+        var generic = Build("""
+            public record P(string Name); public record D(string Name);
+            public partial class M<T> { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() => M<int>.Apply(new P("x")).Name; }
+            """);
+        Assert.Equal("x", Result(generic));
+
+        var plain = Build("""
+            public record P(string Name); public record D(string Name);
+            public static class M { [To] public static partial D Apply(P source); }
+            """);
+        Assert.Contains("ML0007", plain.Errors);
+        Assert.Equal("", plain.Generated);
+    }
 }

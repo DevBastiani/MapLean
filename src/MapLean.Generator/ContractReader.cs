@@ -20,6 +20,9 @@ internal static class ContractReader
         if (type.TypeKind != TypeKind.Class || type.IsRecord)
             return Bad(methodSyntax.Identifier, MapDiagnostics.TypeKind, type.Name, KindName(type));
 
+        if (methodSyntax.Parent is TypeDeclarationSyntax declaring && !declaring.Modifiers.Any(static m => m.IsKind(SyntaxKind.PartialKeyword)))
+            return Bad(methodSyntax.Identifier, MapDiagnostics.TypeKind, type.Name, "class without partial");
+
         if (!Supported(type.DeclaredAccessibility))
             return Bad(methodSyntax.Identifier, MapDiagnostics.Access, type.Name);
 
@@ -29,13 +32,15 @@ internal static class ContractReader
         if (!methodSyntax.Modifiers.Any(static m => m.IsKind(SyntaxKind.PartialKeyword)))
             return Bad(methodSyntax.Identifier, MapDiagnostics.Partial, method.Name);
 
-        if (method.Parameters.Length != 1 || method.ReturnsVoid || method.Arity != 0)
+        if (method.Parameters.Length != 1 || method.ReturnsVoid || method.Arity != 0 || method.RefKind != RefKind.None ||
+            method.Parameters[0].RefKind is not (RefKind.None or RefKind.In))
             return Bad(methodSyntax.Identifier, MapDiagnostics.Signature, method.Name);
 
         var parameter = method.Parameters[0];
+        var parameterName = Escape(parameter.Name);
         var locals = 0;
         var warnings = new List<Diag>();
-        if (!TryPlan(parameter.Type, method.ReturnType, parameter.Name, method.Name, new List<(ITypeSymbol, ITypeSymbol)>(), ref locals, warnings, out var plan, out var fault))
+        if (!TryPlan(parameter.Type, method.ReturnType, parameterName, method.Name, new List<(ITypeSymbol, ITypeSymbol)>(), ref locals, warnings, out var plan, out var fault))
             return Bad(methodSyntax.Identifier, fault);
 
         var ns = method.ContainingNamespace is null || method.ContainingNamespace.IsGlobalNamespace
@@ -45,13 +50,14 @@ internal static class ContractReader
             ns,
             Access(type.DeclaredAccessibility),
             type.IsStatic,
-            type.Name,
+            type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             Access(method.DeclaredAccessibility),
             method.IsStatic,
             method.Name,
             Display(parameter.Type),
             Display(method.ReturnType),
-            parameter.Name,
+            (methodSyntax.ParameterList.Parameters[0].Modifiers.Any(static m => m.IsKind(SyntaxKind.ThisKeyword)) ? "this " : "") + (parameter.RefKind == RefKind.In ? "in " : ""),
+            parameterName,
             plan);
         var hint = HintName(type, method, parameter);
         return new ContractResult.Ok(contract, hint, new EquatableArray<Diag>(warnings));

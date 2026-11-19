@@ -29,6 +29,7 @@ internal sealed record MapContract(
     string MethodName,
     string SourceType,
     string DestType,
+    string ParameterModifiers,
     string ParameterName,
     Plan Root);
 
