@@ -8,7 +8,7 @@ MapLean copies public members of the same name into a partial method.
 dotnet add package MapLean
 ```
 
-The package adds no runtime dependency: the generator runs at build time and `MapLean.dll` is a compile-time reference only.
+The package adds no runtime dependency: the generator runs at build time and `MapLean.dll` is a compile-time reference only. It needs an SDK-style project with `PackageReference`; `packages.config` is not supported.
 
 ## Map a type
 
