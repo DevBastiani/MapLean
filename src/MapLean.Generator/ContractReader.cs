@@ -21,7 +21,7 @@ internal static class ContractReader
             return Bad(methodSyntax.Identifier, MapDiagnostics.TypeKind, type.Name, KindName(type));
 
         if (methodSyntax.Parent is TypeDeclarationSyntax declaring && !declaring.Modifiers.Any(static m => m.IsKind(SyntaxKind.PartialKeyword)))
-            return Bad(methodSyntax.Identifier, MapDiagnostics.TypeKind, type.Name, "class without partial");
+            return Bad(methodSyntax.Identifier, MapDiagnostics.TypeKind, type.Name, "non-partial class");
 
         if (!Supported(type.DeclaredAccessibility))
             return Bad(methodSyntax.Identifier, MapDiagnostics.Access, type.Name);
@@ -218,7 +218,7 @@ internal static class ContractReader
                 continue;
             }
 
-            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + property.Name, named.Name + "." + parameter.Name, path, ref locals, warnings, out var child, out fault))
+            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + Escape(property.Name), named.Name + "." + parameter.Name, path, ref locals, warnings, out var child, out fault))
                 return false;
             built.Add(new Arg(name, child));
         }
@@ -243,7 +243,7 @@ internal static class ContractReader
                 continue;
             }
 
-            if (!TryPlan(from.Type, property.Type, sourceExpr + "." + property.Name, named.Name + "." + property.Name, path, ref locals, warnings, out var child, out fault))
+            if (!TryPlan(from.Type, property.Type, sourceExpr + "." + Escape(from.Name), named.Name + "." + property.Name, path, ref locals, warnings, out var child, out fault))
                 return false;
             built.Add(new Arg(Escape(property.Name), child));
         }

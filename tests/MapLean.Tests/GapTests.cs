@@ -332,6 +332,18 @@ public sealed class GapTests
     }
 
     [Fact]
+    public void Keyword_member_names_are_escaped()
+    {
+        var run = Build("""
+            public record P(string @event, int @class);
+            public sealed class D { public string @event { get; init; } = ""; public int @class { get; set; } }
+            public static partial class M { [To] public static partial D Apply(P source); }
+            public static class Probe { public static string Run() { var d = M.Apply(new P("e", 2)); return d.@event + d.@class; } }
+            """);
+        Assert.Equal("e2", Result(run));
+    }
+
+    [Fact]
     public void Ref_and_out_parameters_are_the_signature_diagnostic()
     {
         foreach (var modifier in new[] { "ref", "out", "ref readonly" })
