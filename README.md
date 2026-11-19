@@ -99,3 +99,7 @@ Move the declaring type out of the outer type. MapLean writes a top-level partia
 ### ML0009
 
 Make the type or the method public or internal. MapLean repeats that accessibility on the generated partial.
+
+### ML0010
+
+Mark the destination member with `[Leave]` and set it yourself. The type refers back to itself, directly or through another type or a `List<T>`, and MapLean does not map recursive types.

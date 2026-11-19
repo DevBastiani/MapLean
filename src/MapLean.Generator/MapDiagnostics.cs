@@ -15,6 +15,7 @@ internal static class MapDiagnostics
     public const string TypeKind = "ML0007";
     public const string Nested = "ML0008";
     public const string Access = "ML0009";
+    public const string Recursive = "ML0010";
 
     private static readonly DiagnosticDescriptor[] Descriptors =
     {
@@ -27,6 +28,7 @@ internal static class MapDiagnostics
         Describe(TypeKind, "Declaring type must be a class", "Change {0} to a partial class. It is a {1}, and MapLean writes a partial class.", DiagnosticSeverity.Error),
         Describe(Nested, "Declaring type must be top-level", "Move {0} out of {1}. MapLean writes a top-level partial class, and a nested type would not receive the method.", DiagnosticSeverity.Error),
         Describe(Access, "Accessibility must be public or internal", "Make {0} public or internal. MapLean repeats that accessibility on the generated partial.", DiagnosticSeverity.Error),
+        Describe(Recursive, "Recursive type", "Mark {0} with [Leave] and set it yourself. {1} refers back to itself, and MapLean does not map recursive types.", DiagnosticSeverity.Error),
     };
 
     public static Diagnostic Create(Diag diag)

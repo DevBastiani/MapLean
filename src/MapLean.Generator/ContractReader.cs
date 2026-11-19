@@ -34,7 +34,7 @@ internal static class ContractReader
         var parameter = method.Parameters[0];
         var locals = 0;
         var warnings = new List<Diag>();
-        if (!TryPlan(parameter.Type, method.ReturnType, parameter.Name, ref locals, warnings, out var plan, out var fault))
+        if (!TryPlan(parameter.Type, method.ReturnType, parameter.Name, method.Name, new List<(ITypeSymbol, ITypeSymbol)>(), ref locals, warnings, out var plan, out var fault))
             return Bad(methodSyntax.Identifier, fault);
 
         var ns = method.ContainingNamespace is null || method.ContainingNamespace.IsGlobalNamespace
@@ -60,6 +60,8 @@ internal static class ContractReader
         ITypeSymbol source,
         ITypeSymbol dest,
         string sourceExpr,
+        string member,
+        List<(ITypeSymbol Source, ITypeSymbol Dest)> path,
         ref int locals,
         List<Diag> warnings,
         out Plan plan,
@@ -70,7 +72,7 @@ internal static class ContractReader
         if (IsList(source, out var sourceElem) && IsList(dest, out var destElem))
         {
             var local = "ml" + locals++;
-            if (!TryPlan(sourceElem, destElem, local + "Item", ref locals, warnings, out var element, out fault))
+            if (!TryPlan(sourceElem, destElem, local + "Item", member, path, ref locals, warnings, out var element, out fault))
                 return false;
             plan = new Plan.List(sourceExpr, local, Display(destElem), element);
             return true;
@@ -90,6 +92,15 @@ internal static class ContractReader
                 return false;
             }
 
+            foreach (var (seenSource, seenDest) in path)
+            {
+                if (SymbolEqualityComparer.Default.Equals(seenSource, source) && SymbolEqualityComparer.Default.Equals(seenDest, dest))
+                {
+                    fault = new Fault(MapDiagnostics.Recursive, member, dest.Name);
+                    return false;
+                }
+            }
+
             var root = sourceExpr;
             string? nullLocal = null;
             if (source.NullableAnnotation == NullableAnnotation.Annotated)
@@ -98,7 +109,10 @@ internal static class ContractReader
                 root = nullLocal;
             }
 
-            if (!TryObject(source, dest, root, ref locals, warnings, out var args, out var typeName, out var ctorCount, out fault))
+            path.Add((source, dest));
+            var planned = TryObject(source, dest, root, path, ref locals, warnings, out var args, out var typeName, out var ctorCount, out fault);
+            path.RemoveAt(path.Count - 1);
+            if (!planned)
                 return false;
 
             plan = nullLocal is null
@@ -115,6 +129,7 @@ internal static class ContractReader
         ITypeSymbol source,
         ITypeSymbol dest,
         string sourceExpr,
+        List<(ITypeSymbol Source, ITypeSymbol Dest)> path,
         ref int locals,
         List<Diag> warnings,
         out EquatableArray<Arg> args,
@@ -171,7 +186,7 @@ internal static class ContractReader
                 continue;
             }
 
-            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + parameter.Name, ref locals, warnings, out var child, out fault))
+            if (!TryPlan(property.Type, parameter.Type, sourceExpr + "." + parameter.Name, named.Name + "." + parameter.Name, path, ref locals, warnings, out var child, out fault))
                 return false;
             built.Add(new Arg(parameter.Name, child));
         }
@@ -196,7 +211,7 @@ internal static class ContractReader
                 continue;
             }
 
-            if (!TryPlan(from.Type, property.Type, sourceExpr + "." + property.Name, ref locals, warnings, out var child, out fault))
+            if (!TryPlan(from.Type, property.Type, sourceExpr + "." + property.Name, named.Name + "." + property.Name, path, ref locals, warnings, out var child, out fault))
                 return false;
             built.Add(new Arg(property.Name, child));
         }
