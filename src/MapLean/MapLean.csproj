@@ -2,7 +2,7 @@
   <PropertyGroup>
     <TargetFramework>netstandard2.0</TargetFramework>
     <!-- Major 0 warns the surface may break (semver.org item 4): patch for a compatible fix, minor for the rest, and the versioned surface is the public name, the diagnostic id, and the observable map result. -->
-    <Version>0.1.0</Version>
+    <Version>0.0.1</Version>
     <PackageId>MapLean</PackageId>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <Description>Source generator that copies public members of the same name into a partial method.</Description>
