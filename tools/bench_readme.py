@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Write or check the README benchmark section against the BenchmarkDotNet markdown."""
 
 import argparse
 import re
